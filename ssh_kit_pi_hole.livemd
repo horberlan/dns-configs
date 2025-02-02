@@ -1,0 +1,112 @@
+# Ssh pi-hole conn
+
+```elixir
+Mix.install([
+  {:sshkit, "~> 0.3.0"},
+  {:kino, "~> 0.14.2"}
+])
+```
+
+## setup (change to system.env)
+
+```elixir
+defmodule PiHoleManager do
+  @default_opts [
+    user: System.get_env("LB_PI_USER", "pi"),
+    password: System.fetch_env!("LB_PI_PASSWD"),
+    silently_accept_hosts: true,
+    timeout: 15_000
+  ]
+
+  def context(extra_opts \\ []) do
+    System.fetch_env!("LB_IP_PI")
+    |> SSHKit.context(Keyword.merge(@default_opts, extra_opts))
+    |> SSHKit.env(%{"PIHOLE_MODE" => "remote"})
+  end
+  
+  def run(command, opts \\ []) do
+    SSHKit.run(context(opts), command)
+  end
+
+  def update_gravity do
+    case run("pihole -g") do
+      [{:ok, output, 0}] -> {:ok, parse_output(output)}
+      other -> {:error, other}
+    end
+  end
+
+  defp parse_output(output) do
+    output
+    |> Keyword.get_values(:stdout)
+    |> Enum.join("\n")
+  end
+end
+```
+
+```elixir
+defmodule ParseTemperature do
+  def parse_temperature(output) do
+  with {:ok, raw} <- Keyword.fetch(output, :stdout),
+       [_, temp_str] <- String.split(raw, "="),
+       [value, _] <- String.split(temp_str, "'C"),
+       {temp, _} <- Float.parse(value) do
+    {:ok, temp}
+  else
+    _ -> {:error, "Formato de temperatura inválido"}
+  end
+end
+end
+
+case PiHoleManager.run("vcgencmd measure_temp") do
+  [{:ok, output, 0}] ->
+    case ParseTemperature.parse_temperature(output) do
+      {:ok, temp} when temp < 80.0 ->
+        IO.puts("✅ Temperatura normal: #{temp}°C")
+        
+      {:ok, temp} ->
+        IO.puts("⚠️ ATENÇÃO: Temperatura elevada! #{temp}°C")
+        
+      {:error, reason} ->
+        IO.puts("⚠️ Formato inválido: #{reason}")
+    end
+
+  error ->
+    IO.puts("🚨 Falha na conexão: #{inspect(error)}")
+end
+
+```
+
+```elixir
+defmodule PiHoleCommands do
+  def rebuild do
+    PiHoleManager.run("pihole restartdns")
+    PiHoleManager.run("pihole -g")
+  end
+
+  def status do
+    PiHoleManager.run("pihole status")
+  end
+
+  def disable(min) do
+    PiHoleManager.run("pihole disable #{min}")
+  end
+end
+```
+
+```elixir
+PiHoleCommands.status()
+```
+
+```elixir
+PiHoleManager.update_gravity()
+```
+
+## Schedule tasks
+
+Ill use genserver here...
+
+```elixir
+#todo
+```
+
+<!-- livebook:{"offset":2177,"stamp":{"token":"XCP.do5ALtBefjp7u7YzjOOeWXl_81tpS3gmWRhdccjrRZq-baruWh5oGfaKVTwB3ajig-h7N5R_YECmW6tVGcr3of_F7UHbh9kPqa03zumeo9v81DUpw9s925iOq9ecWg","version":2}} -->
