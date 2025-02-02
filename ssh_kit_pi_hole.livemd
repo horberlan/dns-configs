@@ -46,32 +46,32 @@ end
 ```elixir
 defmodule ParseTemperature do
   def parse_temperature(output) do
-  with {:ok, raw} <- Keyword.fetch(output, :stdout),
-       [_, temp_str] <- String.split(raw, "="),
-       [value, _] <- String.split(temp_str, "'C"),
-       {temp, _} <- Float.parse(value) do
-    {:ok, temp}
-  else
-    _ -> {:error, "Formato de temperatura inválido"}
+    with {:ok, raw} <- Keyword.fetch(output, :stdout),
+         [_, temp_str] <- String.split(raw, "="),
+         [value, _] <- String.split(temp_str, "'C"),
+         {temp, _} <- Float.parse(value) do
+      {:ok, temp}
+    else
+      _ -> {:error, "Invalid temperature format"}
+    end
   end
-end
 end
 
 case PiHoleManager.run("vcgencmd measure_temp") do
   [{:ok, output, 0}] ->
     case ParseTemperature.parse_temperature(output) do
       {:ok, temp} when temp < 80.0 ->
-        IO.puts("✅ Temperatura normal: #{temp}°C")
+        IO.puts("✅ Normal temperature: #{temp}°C")
         
       {:ok, temp} ->
-        IO.puts("⚠️ ATENÇÃO: Temperatura elevada! #{temp}°C")
+        IO.puts("⚠️ WARNING: High temperature! #{temp}°C")
         
       {:error, reason} ->
-        IO.puts("⚠️ Formato inválido: #{reason}")
+        IO.puts("⚠️ Invalid format: #{reason}")
     end
 
   error ->
-    IO.puts("🚨 Falha na conexão: #{inspect(error)}")
+    IO.puts("🚨 Connection failed: #{inspect(error)}")
 end
 
 ```
